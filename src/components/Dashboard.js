@@ -11,6 +11,7 @@ import {
   getMostPopularDay,
   getInterviewsPerDay
 } from "helpers/selectors";
+import { setInterview } from "helpers/reducers";
 
 const data = [
   {
@@ -45,8 +46,18 @@ class Dashboard extends Component {
     interviewers: {}
   };
 
+  selectPanel(id) {
+    this.setState(previousState => ({
+      focused: previousState.focused !== null ? null : id
+    }));
+  }
+
   componentDidMount() {
     const focused = JSON.parse(localStorage.getItem("focused"));
+
+    if (focused) {
+      this.setState({ focused });
+    }
 
     Promise.all([
       axios.get("/api/days"),
@@ -61,21 +72,26 @@ class Dashboard extends Component {
       });
     });
 
-    if (focused) {
-      this.setState({ focused });
+    this.socket = new WebSocket(process.env.REACT_APP_WEBSOCKET_URL);
+
+    this.socket.onmessage = event => {
+      const data = JSON.parse(event.data);
+
+      if (typeof data === "object" && data.type === "SET_INTERVIEW") {
+        this.setState(previousState => setInterview(previousState, data.id, data.interview));
+      }
     }
+
   }
 
   componentDidUpdate(previousProps, previousState) {
     if (previousState.focused !== this.state.focused) {
       localStorage.setItem("focused", JSON.stringify(this.state.focused));
     }
-  }
+  };
 
-  selectPanel(id) {
-    this.setState(previousState => ({
-      focused: previousState.focused !== null ? null : id
-    }));
+  componentWillUnmount() {
+    this.socket.close();
   }
 
   render() {
@@ -99,6 +115,7 @@ class Dashboard extends Component {
 
     return <main className={dashboardClasses}>{panels}</main>
   }
+
 }
 
 export default Dashboard;
